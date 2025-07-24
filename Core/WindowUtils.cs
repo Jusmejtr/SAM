@@ -293,6 +293,10 @@ namespace SAM.Core
                     {
                         return LoginWindowState.Code;
                     }
+                    else if (inputs.Count == 0 && buttons.Count == 0 && groups.Count == 0 && images.Count == 3 && texts.Count == 7)
+                    {
+                        return LoginWindowState.MobileConfirmation;
+                    }
                     else if (inputs.Count == 2 && buttons.Count == 1)
                     {
                         return LoginWindowState.Login;
@@ -328,6 +332,51 @@ namespace SAM.Core
                 catch (Exception e)
                 {
                     Console.WriteLine(e.Message);
+                }
+            }
+
+            return LoginWindowState.Invalid;
+        }
+
+        public static LoginWindowState TryMobileToCodeSwitch(WindowHandle loginWindow)
+        {
+            using (var automation = new UIA3Automation())
+            {
+                try
+                {
+                    AutomationElement window = automation.FromHandle(loginWindow.RawPtr);
+
+                    window.Focus();
+
+                    AutomationElement document = window.FindFirstDescendant(e => e.ByControlType(ControlType.Document));
+                    AutomationElement[] children = document.FindAllChildren();
+
+                    var texts = new List<AutomationElement>();
+
+                    foreach (AutomationElement element in children)
+                    {
+                        switch (element.ControlType)
+                        {
+                            case ControlType.Text:
+                                texts.Add(element);
+                                break;
+                        }
+                    }
+
+                // Look for "Enter a code instead" text to click
+                foreach (var text in texts)
+                {
+                    if (text.Name.ToLower().Contains("enter a code instead"))
+                    {
+                        text.AsButton().Invoke();
+                        return LoginWindowState.Code;
+                    }
+                }
+
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Error switching from mobile confirmation to code entry: " + e.Message);
                 }
             }
 

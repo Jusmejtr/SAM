@@ -1405,7 +1405,7 @@ namespace SAM.Views
             SetWindowTitle("Working");
             LoginWindowState state = LoginWindowState.None;
 
-            while (state != LoginWindowState.Success && state != LoginWindowState.Code)
+            while (state != LoginWindowState.Success && state != LoginWindowState.Code && state != LoginWindowState.MobileConfirmation)
             {
                 if (steamProcess.HasExited || state == LoginWindowState.Error)
                 {
@@ -1415,7 +1415,6 @@ namespace SAM.Views
                 Thread.Sleep(100);
 
                 state = WindowUtils.GetLoginWindowState(steamLoginWindow);
-
                 if (state == LoginWindowState.Selection)
                 {
                     WindowUtils.HandleAccountSelection(steamLoginWindow);
@@ -1428,13 +1427,137 @@ namespace SAM.Views
                     state = WindowUtils.TryCredentialsEntry(steamLoginWindow, account.Name, password, settings.User.RememberPassword);
                 }
             }
-
+            
+            // Check what type of authentication is required after credential entry
+            Thread.Sleep(3000); // Small delay to let the UI update
+            state = WindowUtils.GetLoginWindowState(steamLoginWindow);
             string secret = StringCipher.Decrypt(account.SharedSecret, eKey);
 
-            if (secret != null && secret.Length > 0)
+            // Handle both Code and MobileConfirmation states
+            if ((state == LoginWindowState.Code || state == LoginWindowState.MobileConfirmation) && secret != null && secret.Length > 0)
             {
-                EnterReact2FA(steamProcess, account, tryCount);
+                // If it's mobile confirmation, try to switch to code entry first
+                if (state == LoginWindowState.MobileConfirmation)
+                {
+                    Console.WriteLine("Mobile confirmation detected and shared secret available. Switching to 2FA code entry...");
+                    SetWindowTitle("Switching to 2FA code...");
+                    
+                    // Try to switch from mobile confirmation to code entry
+                    LoginWindowState switchResult = WindowUtils.TryMobileToCodeSwitch(steamLoginWindow);
+                    Thread.Sleep(500);
+                    if (switchResult == LoginWindowState.Code)
+                    {
+                        Console.WriteLine("Successfully switched to 2FA code entry mode");
+                        state = LoginWindowState.Code;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to switch to code entry, falling back to manual mobile confirmation");
+                        MessageBox.Show("Could not automatically switch to 2FA code entry. Please manually select 'Use code instead' or approve on your mobile device.", 
+                                      "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                        
+                        // Fall back to mobile confirmation waiting
+                        ShowMobileConfirmationStatus("Please check your mobile device");
+                        
+                        // Wait for mobile confirmation or timeout
+                        int waitCounter = 0;
+                        int maxWaitTime = 120000; // 2 minutes in milliseconds
+                        int statusUpdateInterval = 15000; // Update status every 15 seconds
+                        int lastStatusUpdate = 0;
+                        
+                        while (state == LoginWindowState.MobileConfirmation && waitCounter < maxWaitTime)
+                        {
+                            if (steamProcess.HasExited)
+                            {
+                                return;
+                            }
+                            
+                            Thread.Sleep(1000);
+                            waitCounter += 1000;
+                            
+                            // Update status periodically
+                            if (waitCounter - lastStatusUpdate >= statusUpdateInterval)
+                            {
+                                int remainingSeconds = (maxWaitTime - waitCounter) / 1000;
+                                lastStatusUpdate = waitCounter;
+                            }
+                            
+                            state = WindowUtils.GetLoginWindowState(steamLoginWindow);
+                            
+                            // Check if Steam client window is now available (login successful)
+                            if (WindowUtils.GetMainSteamClientWindow(steamProcess).IsValid)
+                            {
+                                PostLogin();
+                                return;
+                            }
+                        }
+                        
+                        if (waitCounter >= maxWaitTime)
+                        {
+                            MessageBox.Show("Mobile confirmation timed out. Please try again.", "Timeout", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                        
+                        PostLogin();
+                        return;
+                    }
+                }
+                
+                // Now handle 2FA code entry (either original Code state or switched from Mobile)
+                if (state == LoginWindowState.Code)
+                {
+                    Console.WriteLine("Entering 2FA code...");
+                    EnterReact2FA(steamProcess, account, tryCount);
+                }
             }
+            // Handle mobile confirmation when no shared secret is available
+            else if (state == LoginWindowState.MobileConfirmation)
+            {
+                Console.WriteLine("Mobile confirmation detected, but no shared secret configured. Please approve on mobile device.");
+                ShowMobileConfirmationStatus("Please check your mobile device");
+                
+                // Wait for mobile confirmation or timeout
+                int waitCounter = 0;
+                int maxWaitTime = 120000; // 2 minutes in milliseconds
+                int statusUpdateInterval = 15000; // Update status every 15 seconds
+                int lastStatusUpdate = 0;
+                
+                while (state == LoginWindowState.MobileConfirmation && waitCounter < maxWaitTime)
+                {
+                    if (steamProcess.HasExited)
+                    {
+                        return;
+                    }
+                    
+                    Thread.Sleep(1000);
+                    waitCounter += 1000;
+                    
+                    // Update status periodically
+                    if (waitCounter - lastStatusUpdate >= statusUpdateInterval)
+                    {
+                        int remainingSeconds = (maxWaitTime - waitCounter) / 1000;
+                        lastStatusUpdate = waitCounter;
+                    }
+                    
+                    state = WindowUtils.GetLoginWindowState(steamLoginWindow);
+                    
+                    // Check if Steam client window is now available (login successful)
+                    if (WindowUtils.GetMainSteamClientWindow(steamProcess).IsValid)
+                    {
+                        PostLogin();
+                        return;
+                    }
+                }
+                
+                if (waitCounter >= maxWaitTime)
+                {
+                    MessageBox.Show("Mobile confirmation timed out. Please try again.", "Timeout", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                PostLogin();
+            }
+            // Handle case where no 2FA is configured or login completed
             else
             {
                 Thread.Sleep(settings.User.SleepTime);
@@ -1553,6 +1676,15 @@ namespace SAM.Views
                     Dispatcher.Invoke(delegate () { Close(); });
                 }
             }
+        }
+
+        private void ShowMobileConfirmationStatus(string message)
+        {
+            Console.WriteLine(message);
+            // You could also update a status label or show a non-blocking notification here
+            Dispatcher.Invoke(() => {
+                SetWindowTitle("Mobile Confirmation - " + message);
+            });
         }
 
         private void SortAccounts(SortType sortType)

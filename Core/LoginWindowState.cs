@@ -8,6 +8,7 @@
         Selection,
         Login,
         Code,
+        MobileConfirmation,
         Loading,
         Success
     }
