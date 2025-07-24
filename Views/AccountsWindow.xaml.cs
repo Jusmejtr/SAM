@@ -1440,7 +1440,6 @@ namespace SAM.Views
                 if (state == LoginWindowState.MobileConfirmation)
                 {
                     Console.WriteLine("Mobile confirmation detected and shared secret available. Switching to 2FA code entry...");
-                    SetWindowTitle("Switching to 2FA code...");
                     
                     // Try to switch from mobile confirmation to code entry
                     LoginWindowState switchResult = WindowUtils.TryMobileToCodeSwitch(steamLoginWindow);
@@ -1455,10 +1454,7 @@ namespace SAM.Views
                         Console.WriteLine("Failed to switch to code entry, falling back to manual mobile confirmation");
                         MessageBox.Show("Could not automatically switch to 2FA code entry. Please manually select 'Use code instead' or approve on your mobile device.", 
                                       "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                        
-                        // Fall back to mobile confirmation waiting
-                        ShowMobileConfirmationStatus("Please check your mobile device");
-                        
+                                                
                         // Wait for mobile confirmation or timeout
                         int waitCounter = 0;
                         int maxWaitTime = 120000; // 2 minutes in milliseconds
@@ -1514,7 +1510,6 @@ namespace SAM.Views
             else if (state == LoginWindowState.MobileConfirmation)
             {
                 Console.WriteLine("Mobile confirmation detected, but no shared secret configured. Please approve on mobile device.");
-                ShowMobileConfirmationStatus("Please check your mobile device");
                 
                 // Wait for mobile confirmation or timeout
                 int waitCounter = 0;
@@ -1676,15 +1671,6 @@ namespace SAM.Views
                     Dispatcher.Invoke(delegate () { Close(); });
                 }
             }
-        }
-
-        private void ShowMobileConfirmationStatus(string message)
-        {
-            Console.WriteLine(message);
-            // You could also update a status label or show a non-blocking notification here
-            Dispatcher.Invoke(() => {
-                SetWindowTitle("Mobile Confirmation - " + message);
-            });
         }
 
         private void SortAccounts(SortType sortType)
