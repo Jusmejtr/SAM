@@ -428,15 +428,15 @@ namespace SAM.Core
                         passwordBox.WaitUntilEnabled();
                         passwordBox.Text = password;
 
-                        Button checkBoxButton = groups[0].AsButton();
-                        bool isChecked = checkBoxButton.FindFirstChild(e => e.ByControlType(ControlType.Image)) != null;
+                        //Button checkBoxButton = groups[0].AsButton();
+                        //bool isChecked = checkBoxButton.FindFirstChild(e => e.ByControlType(ControlType.Image)) != null;
 
-                        if (remember != isChecked)
-                        {
-                            checkBoxButton.Focus();
-                            checkBoxButton.WaitUntilEnabled();
-                            checkBoxButton.Invoke();
-                        }
+                        //if (remember != isChecked)
+                        //{
+                        //    checkBoxButton.Focus();
+                        //    checkBoxButton.WaitUntilEnabled();
+                        //    checkBoxButton.Invoke();
+                        //}
 
                         signInButton.Focus();
                         signInButton.WaitUntilEnabled();
